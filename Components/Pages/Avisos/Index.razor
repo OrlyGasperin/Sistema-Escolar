@@ -204,7 +204,7 @@ else
                 Mensagem = modelo.Mensagem,
                 AutorId = usuarioId,
                 Ativo = true,
-                DataPublicacao = DateTime.Now
+                DataPublicacao = DateTime.UtcNow
             };
             DbContext.Avisos.Add(aviso);
             await DbContext.SaveChangesAsync();

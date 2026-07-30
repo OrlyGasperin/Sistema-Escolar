@@ -172,8 +172,8 @@ else
     private string filtroEntidade = string.Empty;
     private string filtroAcao = string.Empty;
     private string filtroUsuario = string.Empty;
-    private DateTime filtroDataInicio = DateTime.Today.AddDays(-7);
-    private DateTime filtroDataFim = DateTime.Today;
+    private DateTime filtroDataInicio = DateTime.UtcNow.Date.AddDays(-7);
+    private DateTime filtroDataFim = DateTime.UtcNow.Date;
     private bool confirmarExcluirTodos;
 
     private int paginaAtual = 1;
@@ -185,8 +185,8 @@ else
 
     private async Task Carregar()
     {
-        var inicio = filtroDataInicio.Date;
-        var fim = filtroDataFim.Date.AddDays(1).AddTicks(-1);
+        var inicio = DateTime.SpecifyKind(filtroDataInicio.Date, DateTimeKind.Utc);
+        var fim = DateTime.SpecifyKind(filtroDataFim.Date.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
 
         var query = DbContext.LogsAuditoria
             .Where(l => l.DataHora >= inicio && l.DataHora <= fim);

@@ -18,7 +18,7 @@ public class Falta
     public ApplicationUser? ProfessorLancou { get; set; }
 
     public StatusFalta Status { get; set; } = StatusFalta.Ativa;
-    public DateTime DataLancamento { get; set; } = DateTime.Now;
+    public DateTime DataLancamento { get; set; } = DateTime.UtcNow;
     public string? Observacao { get; set; }
 
     public ICollection<SolicitacaoAlteracaoFalta> Solicitacoes { get; set; } = new List<SolicitacaoAlteracaoFalta>();

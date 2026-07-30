@@ -34,7 +34,7 @@ public class FaltaService : IFaltaService
             ProfessorLancouId = professorId,
             Status = StatusFalta.Ativa,
             Observacao = observacao,
-            DataLancamento = DateTime.Now
+            DataLancamento = DateTime.UtcNow
         };
 
         _context.Faltas.Add(falta);
@@ -91,7 +91,7 @@ public class FaltaService : IFaltaService
             Motivo = motivo,
             StatusDesejado = statusDesejado,
             Status = StatusSolicitacao.Pendente,
-            DataSolicitacao = DateTime.Now
+            DataSolicitacao = DateTime.UtcNow
         };
 
         _context.SolicitacoesAlteracaoFalta.Add(solicitacao);
@@ -119,7 +119,7 @@ public class FaltaService : IFaltaService
         solicitacao.Status = aprovar ? StatusSolicitacao.Aprovada : StatusSolicitacao.Rejeitada;
         solicitacao.PedagogoRespondeuId = pedagogoId;
         solicitacao.RespostaPedagogo = resposta;
-        solicitacao.DataResposta = DateTime.Now;
+        solicitacao.DataResposta = DateTime.UtcNow;
 
         if (aprovar && solicitacao.Falta is not null)
         {

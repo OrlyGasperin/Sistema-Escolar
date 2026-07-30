@@ -8,7 +8,7 @@ public class Aluno
     public string? NomeResponsavel { get; set; }
     public string? TelefoneResponsavel { get; set; }
     public bool Ativo { get; set; } = true;
-    public DateTime DataMatricula { get; set; } = DateTime.Now;
+    public DateTime DataMatricula { get; set; } = DateTime.UtcNow;
 
     public int TurmaId { get; set; }
     public Turma? Turma { get; set; }

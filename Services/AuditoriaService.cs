@@ -24,7 +24,7 @@ public class AuditoriaService : IAuditoriaService
             EntidadeId = entidadeId,
             DetalhesAntes = detalhesAntes,
             DetalhesDepois = detalhesDepois,
-            DataHora = DateTime.Now
+            DataHora = DateTime.UtcNow
         };
 
         _context.LogsAuditoria.Add(log);

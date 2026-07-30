@@ -195,7 +195,7 @@
                 NomeCompleto = nomeCompleto,
                 TipoUsuario = tipoUsuario,
                 Ativo = true,
-                DataCadastro = DateTime.Now
+                DataCadastro = DateTime.UtcNow
             };
 
             var resultado = await UserManager.CreateAsync(novoUsuario, senha);

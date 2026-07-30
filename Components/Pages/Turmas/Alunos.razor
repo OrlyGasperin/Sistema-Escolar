@@ -243,7 +243,7 @@ else
                 TelefoneResponsavel = modelo.TelefoneResponsavel,
                 TurmaId = TurmaId,
                 Ativo = true,
-                DataMatricula = DateTime.Now
+                DataMatricula = DateTime.UtcNow
             };
             DbContext.Alunos.Add(aluno);
             await DbContext.SaveChangesAsync();

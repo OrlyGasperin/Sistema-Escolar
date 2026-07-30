@@ -12,7 +12,7 @@ public class SolicitacaoAlteracaoFalta
 
     public string Motivo { get; set; } = string.Empty;
     public StatusFalta StatusDesejado { get; set; } // Ativa ou Cancelada
-    public DateTime DataSolicitacao { get; set; } = DateTime.Now;
+    public DateTime DataSolicitacao { get; set; } = DateTime.UtcNow;
 
     public StatusSolicitacao Status { get; set; } = StatusSolicitacao.Pendente;
 

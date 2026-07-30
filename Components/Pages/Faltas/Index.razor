@@ -328,15 +328,15 @@
     private Dictionary<int, bool> presencas = new();
     private int turmaSelecionadaId;
     private int materiaSelecionadaId;
-    private DateTime dataAula = DateTime.Today;
+    private DateTime dataAula = DateTime.UtcNow.Date;
     private string? observacaoGeral;
 
     // Histórico
     private List<Falta>? faltas;
     private int filtroHistTurmaId;
     private int filtroHistMateriaId;
-    private DateTime filtroDataInicio = DateTime.Today.AddDays(-30);
-    private DateTime filtroDataFim = DateTime.Today;
+    private DateTime filtroDataInicio = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(-30), DateTimeKind.Utc);
+    private DateTime filtroDataFim = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
     // Editar
     private Falta? faltaEditando;
@@ -452,6 +452,7 @@
 
     private async Task LancarFaltas()
     {
+        dataAula = DateTime.SpecifyKind(dataAula, DateTimeKind.Utc);
         mensagemErro = null;
         mensagemSucesso = null;
 
@@ -487,13 +488,16 @@
 
     private async Task CarregarHistorico()
     {
+        filtroDataInicio = DateTime.SpecifyKind(filtroDataInicio, DateTimeKind.Utc);
+        filtroDataFim = DateTime.SpecifyKind(filtroDataFim, DateTimeKind.Utc);
         var query = DbContext.Faltas
             .Include(f => f.Aluno)
             .Include(f => f.Turma)
             .Include(f => f.Materia)
             .Include(f => f.ProfessorLancou)
             .Include(f => f.Solicitacoes)
-            .Where(f => f.Data >= filtroDataInicio && f.Data <= filtroDataFim);
+            .Where(f => f.Data >= filtroDataInicio.ToUniversalTime()
+         && f.Data <= filtroDataFim.ToUniversalTime());
 
         if (tipoUsuario == TipoUsuario.Professor.ToString())
             query = query.Where(f => f.ProfessorLancouId == usuarioId);

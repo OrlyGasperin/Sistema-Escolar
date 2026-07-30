@@ -91,6 +91,8 @@ public class RelatorioFaltaService : IRelatorioFaltaService
 
     private static (DateTime inicio, DateTime fim) ObterIntervalo(PeriodoRelatorio periodo, DateTime dataReferencia)
     {
+        dataReferencia = DateTime.SpecifyKind(dataReferencia, DateTimeKind.Utc);
+
         return periodo switch
         {
             PeriodoRelatorio.Dia => (
@@ -98,16 +100,16 @@ public class RelatorioFaltaService : IRelatorioFaltaService
                 dataReferencia.Date.AddDays(1).AddTicks(-1)),
 
             PeriodoRelatorio.Mes => (
-                new DateTime(dataReferencia.Year, dataReferencia.Month, 1),
-                new DateTime(dataReferencia.Year, dataReferencia.Month, 1).AddMonths(1).AddTicks(-1)),
+                new DateTime(dataReferencia.Year, dataReferencia.Month, 1, 0, 0, 0, DateTimeKind.Utc),
+                new DateTime(dataReferencia.Year, dataReferencia.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1).AddTicks(-1)),
 
             PeriodoRelatorio.Semestre => (
-                new DateTime(dataReferencia.Year, dataReferencia.Month <= 6 ? 1 : 7, 1),
-                new DateTime(dataReferencia.Year, dataReferencia.Month <= 6 ? 1 : 7, 1).AddMonths(6).AddTicks(-1)),
+                new DateTime(dataReferencia.Year, dataReferencia.Month <= 6 ? 1 : 7, 1, 0, 0, 0, DateTimeKind.Utc),
+                new DateTime(dataReferencia.Year, dataReferencia.Month <= 6 ? 1 : 7, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(6).AddTicks(-1)),
 
             PeriodoRelatorio.Ano => (
-                new DateTime(dataReferencia.Year, 1, 1),
-                new DateTime(dataReferencia.Year, 1, 1).AddYears(1).AddTicks(-1)),
+                new DateTime(dataReferencia.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                new DateTime(dataReferencia.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddYears(1).AddTicks(-1)),
 
             _ => throw new ArgumentOutOfRangeException(nameof(periodo))
         };

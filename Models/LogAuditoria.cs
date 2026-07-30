@@ -3,7 +3,7 @@
 public class LogAuditoria
 {
     public int Id { get; set; }
-    public DateTime DataHora { get; set; } = DateTime.Now;
+    public DateTime DataHora { get; set; } = DateTime.UtcNow;
 
     public string UsuarioId { get; set; } = string.Empty;
     public string UsuarioNome { get; set; } = string.Empty; // snapshot, evita join se usuário for excluído
