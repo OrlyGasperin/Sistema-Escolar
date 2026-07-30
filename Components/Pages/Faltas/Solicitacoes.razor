@@ -1,0 +1,232 @@
+﻿@page "/faltas/solicitacoes"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.AprovarSolicitacaoFalta)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject IFaltaService FaltaService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Solicitações de Alteração de Falta</PageTitle>
+
+<h3>Solicitações de Alteração de Falta</h3>
+
+<div class="mb-3">
+    <select class="form-select w-auto" @onchange="FiltrarStatus">
+        <option value="todos">Todas</option>
+        <option value="pendente" selected>Pendentes</option>
+        <option value="aprovada">Aprovadas</option>
+        <option value="rejeitada">Rejeitadas</option>
+    </select>
+</div>
+
+@if (!string.IsNullOrEmpty(mensagemSucesso))
+{
+    <div class="alert alert-success">@mensagemSucesso</div>
+}
+
+@if (solicitacoes is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else if (solicitacoes.Count == 0)
+{
+    <p class="text-muted">Nenhuma solicitação encontrada.</p>
+}
+else
+{
+    <table class="table table-hover table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>Data solicitação</th>
+                <th>Professor</th>
+                <th>Aluno</th>
+                <th>Data falta</th>
+                <th>Matéria</th>
+                <th>Status atual</th>
+                <th>Deseja alterar para</th>
+                <th>Motivo</th>
+                <th>Status solicitação</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in solicitacoes)
+            {
+                <tr>
+                    <td>@s.DataSolicitacao.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@s.ProfessorSolicitante?.NomeCompleto</td>
+                    <td>@s.Falta?.Aluno?.NomeCompleto</td>
+                    <td>@s.Falta?.Data.ToString("dd/MM/yyyy")</td>
+                    <td>@s.Falta?.Materia?.Nome</td>
+                    <td>
+                        <span class="badge @(s.Falta?.Status == StatusFalta.Ativa ? "bg-danger" : "bg-secondary")">
+                            @s.Falta?.Status
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge @(s.StatusDesejado == StatusFalta.Ativa ? "bg-danger" : "bg-secondary")">
+                            @s.StatusDesejado
+                        </span>
+                    </td>
+                    <td>@s.Motivo</td>
+                    <td>
+                        @if (s.Status == StatusSolicitacao.Pendente)
+                        {
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                        }
+                        else if (s.Status == StatusSolicitacao.Aprovada)
+                        {
+                            <span class="badge bg-success">Aprovada</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">Rejeitada</span>
+                        }
+                    </td>
+                    <td>
+                        @if (s.Status == StatusSolicitacao.Pendente)
+                        {
+                            <button class="btn btn-sm btn-success me-1"
+                                    @onclick="() => AbrirResposta(s, true)">
+                                Aprovar
+                            </button>
+                            <button class="btn btn-sm btn-danger"
+                                    @onclick="() => AbrirResposta(s, false)">
+                                Rejeitar
+                            </button>
+                        }
+                        else
+                        {
+                            <small class="text-muted">
+                                @s.PedagogoRespondeu?.NomeCompleto<br />
+                                @s.DataResposta?.ToString("dd/MM/yyyy")
+                            </small>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (mostrarResposta && solicitacaoSelecionada is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(aprovando ? "Aprovar" : "Rejeitar") Solicitação</h5>
+                    <button type="button" class="btn-close" @onclick="() => mostrarResposta = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        <strong>Aluno:</strong> @solicitacaoSelecionada.Falta?.Aluno?.NomeCompleto<br />
+                        <strong>Data:</strong> @solicitacaoSelecionada.Falta?.Data.ToString("dd/MM/yyyy")<br />
+                        <strong>Motivo do professor:</strong> @solicitacaoSelecionada.Motivo
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Sua resposta</label>
+                        <textarea class="form-control" rows="3" @bind="textoResposta"></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(mensagemErroModal))
+                    {
+                        <div class="alert alert-danger">@mensagemErroModal</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => mostrarResposta = false">Cancelar</button>
+                    <button class="btn @(aprovando ? "btn-success" : "btn-danger")"
+                            @onclick="ConfirmarResposta">
+                        Confirmar @(aprovando ? "aprovação" : "rejeição")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<SolicitacaoAlteracaoFalta>? solicitacoes;
+    private SolicitacaoAlteracaoFalta? solicitacaoSelecionada;
+    private bool mostrarResposta;
+    private bool aprovando;
+    private string textoResposta = string.Empty;
+    private string? mensagemSucesso;
+    private string? mensagemErroModal;
+    private string filtroStatusAtual = "pendente";
+    private string usuarioId = string.Empty;
+    private string usuarioNome = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        var query = DbContext.SolicitacoesAlteracaoFalta
+            .Include(s => s.ProfessorSolicitante)
+            .Include(s => s.PedagogoRespondeu)
+            .Include(s => s.Falta).ThenInclude(f => f!.Aluno)
+            .Include(s => s.Falta).ThenInclude(f => f!.Materia)
+            .AsQueryable();
+
+        query = filtroStatusAtual switch
+        {
+            "pendente" => query.Where(s => s.Status == StatusSolicitacao.Pendente),
+            "aprovada" => query.Where(s => s.Status == StatusSolicitacao.Aprovada),
+            "rejeitada" => query.Where(s => s.Status == StatusSolicitacao.Rejeitada),
+            _ => query
+        };
+
+        solicitacoes = await query.OrderByDescending(s => s.DataSolicitacao).ToListAsync();
+    }
+
+    private async Task FiltrarStatus(ChangeEventArgs e)
+    {
+        filtroStatusAtual = e.Value?.ToString() ?? "todos";
+        await Carregar();
+    }
+
+    private void AbrirResposta(SolicitacaoAlteracaoFalta s, bool aprovar)
+    {
+        solicitacaoSelecionada = s;
+        aprovando = aprovar;
+        textoResposta = string.Empty;
+        mensagemErroModal = null;
+        mostrarResposta = true;
+    }
+
+    private async Task ConfirmarResposta()
+    {
+        if (solicitacaoSelecionada is null) return;
+
+        if (string.IsNullOrWhiteSpace(textoResposta))
+        {
+            mensagemErroModal = "Informe uma resposta antes de confirmar.";
+            return;
+        }
+
+        var resultado = await FaltaService.ResponderSolicitacaoAsync(
+            solicitacaoSelecionada.Id, aprovando,
+            usuarioId, usuarioNome, textoResposta);
+
+        if (!resultado.Sucesso)
+        {
+            mensagemErroModal = resultado.MensagemErro;
+            return;
+        }
+
+        mostrarResposta = false;
+        mensagemSucesso = aprovando ? "Solicitação aprovada!" : "Solicitação rejeitada!";
+        await Carregar();
+    }
+}

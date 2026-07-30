@@ -1,0 +1,12 @@
+﻿@page "/Account/Register"
+@using SistemaEscolarCompleto.Components.Account
+@inject IdentityRedirectManager RedirectManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Registro público desabilitado.
+        // Usuários são criados pelo Admin ou Pedagogo em /usuarios.
+        RedirectManager.RedirectTo("Account/Login");
+    }
+}

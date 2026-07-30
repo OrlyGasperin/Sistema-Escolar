@@ -1,0 +1,214 @@
+﻿@page "/usuarios/novo/{TipoStr}"
+@page "/usuarios/editar/{Id}"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.GerenciarProfessores)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject IAuditoriaService Auditoria
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<PageTitle>@(IsEdicao ? "Editar Usuário" : "Novo Usuário")</PageTitle>
+<h3>@(IsEdicao ? "Editar Usuário" : $"Novo {TipoStr}")</h3>
+
+<div class="row">
+    <div class="col-md-6">
+        @if (erros.Any())
+        {
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach (var erro in erros)
+                    {
+                        <li>@erro</li>
+                    }
+                </ul>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(mensagemSucesso))
+        {
+            <div class="alert alert-success">@mensagemSucesso</div>
+        }
+
+        <div class="mb-3">
+            <label class="form-label">Nome completo</label>
+            <input class="form-control @(erros.Any(e => e.Contains("Nome")) ? "is-invalid" : "")"
+                   @bind="nomeCompleto" @bind:event="oninput" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">E-mail</label>
+            <input class="form-control @(erros.Any(e => e.Contains("E-mail")) ? "is-invalid" : "")"
+                   type="email" @bind="email" @bind:event="oninput" />
+        </div>
+
+        @if (!IsEdicao)
+        {
+            <div class="mb-3">
+                <label class="form-label">Senha provisória</label>
+                <input class="form-control @(erros.Any(e => e.Contains("Senha")) ? "is-invalid" : "")"
+                       type="password" @bind="senha" @bind:event="oninput" />
+            </div>
+        }
+
+        @if (IsEdicao)
+        {
+            <div class="mb-3 form-check">
+                <input class="form-check-input" type="checkbox" @bind="ativo" id="chkAtivo" />
+                <label class="form-check-label" for="chkAtivo">Ativo</label>
+            </div>
+        }
+
+        <AuthorizeView Policy="@Politicas.GerenciarPedagogos" Context="authAdmin">
+            <Authorized>
+                @if (IsEdicao && usuarioEditando?.TipoUsuario != TipoUsuario.Admin)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de usuário</label>
+                        <select class="form-select" @bind="tipoUsuario">
+                            <option value="@TipoUsuario.Pedagogo">Pedagogo</option>
+                            <option value="@TipoUsuario.Professor">Professor</option>
+                        </select>
+                    </div>
+                }
+            </Authorized>
+        </AuthorizeView>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" @onclick="Salvar">Salvar</button>
+            <a href="usuarios" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? TipoStr { get; set; }
+    [Parameter] public string? Id { get; set; }
+
+    private bool IsEdicao => !string.IsNullOrEmpty(Id);
+    private ApplicationUser? usuarioEditando;
+
+    private string nomeCompleto = string.Empty;
+    private string email = string.Empty;
+    private string senha = string.Empty;
+    private bool ativo = true;
+    private TipoUsuario tipoUsuario = TipoUsuario.Professor;
+
+    private List<string> erros = new();
+    private string? mensagemSucesso;
+    private string usuarioLogadoId = string.Empty;
+    private string usuarioLogadoNome = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioLogadoId = authState.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioLogadoNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
+
+        if (IsEdicao)
+        {
+            usuarioEditando = await DbContext.Users.FindAsync(Id);
+            if (usuarioEditando is not null)
+            {
+                nomeCompleto = usuarioEditando.NomeCompleto;
+                email = usuarioEditando.Email ?? string.Empty;
+                ativo = usuarioEditando.Ativo;
+                tipoUsuario = usuarioEditando.TipoUsuario;
+            }
+        }
+        else
+        {
+            tipoUsuario = TipoStr?.ToLower() == "pedagogo"
+                ? TipoUsuario.Pedagogo
+                : TipoUsuario.Professor;
+        }
+    }
+
+    private bool Validar()
+    {
+        erros = new();
+
+        if (string.IsNullOrWhiteSpace(nomeCompleto))
+            erros.Add("Nome obrigatório");
+
+        if (string.IsNullOrWhiteSpace(email))
+            erros.Add("E-mail obrigatório");
+        else if (!email.Contains("@"))
+            erros.Add("E-mail inválido");
+
+        if (!IsEdicao && string.IsNullOrWhiteSpace(senha))
+            erros.Add("Senha obrigatória");
+        else if (!IsEdicao && senha.Length < 6)
+            erros.Add("Senha: mínimo 6 caracteres");
+
+        return !erros.Any();
+    }
+
+    private async Task Salvar()
+    {
+        mensagemSucesso = null;
+        if (!Validar()) return;
+
+        if (IsEdicao)
+        {
+            if (usuarioEditando is null) return;
+
+            string antes = $"Nome: {usuarioEditando.NomeCompleto}, Email: {usuarioEditando.Email}, Ativo: {usuarioEditando.Ativo}, Tipo: {usuarioEditando.TipoUsuario}";
+
+            usuarioEditando.NomeCompleto = nomeCompleto;
+            usuarioEditando.Email = email;
+            usuarioEditando.UserName = email;
+            usuarioEditando.NormalizedEmail = email.ToUpperInvariant();
+            usuarioEditando.NormalizedUserName = email.ToUpperInvariant();
+            usuarioEditando.Ativo = ativo;
+
+            if (usuarioEditando.TipoUsuario != TipoUsuario.Admin)
+                usuarioEditando.TipoUsuario = tipoUsuario;
+
+            var resultado = await UserManager.UpdateAsync(usuarioEditando);
+            if (!resultado.Succeeded)
+            {
+                erros = resultado.Errors.Select(e => e.Description).ToList();
+                return;
+            }
+
+            string depois = $"Nome: {usuarioEditando.NomeCompleto}, Email: {usuarioEditando.Email}, Ativo: {usuarioEditando.Ativo}, Tipo: {usuarioEditando.TipoUsuario}";
+            await Auditoria.RegistrarAsync(usuarioLogadoId, usuarioLogadoNome, "Edição", "Usuario",
+                usuarioEditando.Id, antes, depois);
+
+            mensagemSucesso = "Usuário atualizado com sucesso!";
+        }
+        else
+        {
+            var novoUsuario = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                EmailConfirmed = true,
+                NomeCompleto = nomeCompleto,
+                TipoUsuario = tipoUsuario,
+                Ativo = true,
+                DataCadastro = DateTime.Now
+            };
+
+            var resultado = await UserManager.CreateAsync(novoUsuario, senha);
+            if (!resultado.Succeeded)
+            {
+                erros = resultado.Errors.Select(e => e.Description).ToList();
+                return;
+            }
+
+            await Auditoria.RegistrarAsync(usuarioLogadoId, usuarioLogadoNome, "Criação", "Usuario",
+                novoUsuario.Id, null, $"Nome: {novoUsuario.NomeCompleto}, Tipo: {novoUsuario.TipoUsuario}");
+
+            Nav.NavigateTo("usuarios");
+        }
+    }
+}

@@ -1,0 +1,232 @@
+﻿@page "/relatorios/faltas"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.LancarFalta)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject IRelatorioFaltaService RelatorioService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+<PageTitle>Relatório de Faltas</PageTitle>
+
+<h3>Relatório de Faltas</h3>
+
+<div class="row mb-3 g-2">
+    <div class="col-md-2">
+        <label class="form-label">Período</label>
+        <select class="form-select" @onchange="AlterarPeriodo">
+            <option value="@PeriodoRelatorio.Dia">Dia</option>
+            <option value="@PeriodoRelatorio.Mes" selected>Mês</option>
+            <option value="@PeriodoRelatorio.Semestre">Semestre</option>
+            <option value="@PeriodoRelatorio.Ano">Ano</option>
+        </select>
+    </div>
+
+    <div class="col-md-2">
+        <label class="form-label">Data referência</label>
+        @if (periodoSelecionado == PeriodoRelatorio.Dia)
+        {
+            <InputDate class="form-control" @bind-Value="dataReferencia"
+                       @bind-Value:after="Calcular" />
+        }
+        else
+        {
+            <InputDate class="form-control" Type="InputDateType.Month"
+                       @bind-Value="dataReferencia" @bind-Value:after="Calcular" />
+        }
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Turma</label>
+        <select class="form-select" @onchange="AlterarTurma">
+            <option value="0">Todas</option>
+            @foreach (var t in turmas)
+            {
+                <option value="@t.Id">@t.Nome (@t.AnoLetivo)</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Aluno</label>
+        <select class="form-select" @onchange="AlterarAluno">
+            <option value="0">Todos</option>
+            @foreach (var a in alunosFiltrados)
+            {
+                <option value="@a.Id">@a.NomeCompleto</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-2">
+        <label class="form-label">Matéria</label>
+        <select class="form-select" @onchange="AlterarMateria">
+            <option value="0">Todas</option>
+            @foreach (var m in materias)
+            {
+                <option value="@m.Id">@m.Nome</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (carregando)
+{
+    <p><em>Calculando...</em></p>
+}
+else if (resultado is not null)
+{
+    <div class="row mt-3">
+        <div class="col-md-4 d-flex align-items-center justify-content-center">
+            <canvas id="graficoFaltas" width="320" height="320"></canvas>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Resumo</h5>
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td>Total de aulas no período</td>
+                                <td><strong>@resultado.TotalAulasNoPeriodo</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Total de faltas</td>
+                                <td><strong class="text-danger">@resultado.TotalFaltasNoPeriodo</strong></td>
+                            </tr>
+                            @foreach (var item in resultado.Itens)
+                            {
+                                <tr>
+                                    <td>@item.Rotulo</td>
+                                    <td>
+                                        <strong>@item.Percentual.ToString("F1")%</strong>
+                                        (@item.Quantidade)
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    @if (resultado.TotalAulasNoPeriodo == 0)
+                    {
+                        <div class="alert alert-warning mt-2">
+                            Nenhuma aula registrada no calendário para este período/filtro.
+                            O percentual é calculado com base nas aulas do calendário.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Turma> turmas = new();
+    private List<Aluno> alunosFiltrados = new();
+    private List<Materia> materias = new();
+
+    private PeriodoRelatorio periodoSelecionado = PeriodoRelatorio.Mes;
+    private DateTime dataReferencia = DateTime.Today;
+    private int filtroTurmaId;
+    private int filtroAlunoId;
+    private int filtroMateriaId;
+    private string? filtroProfessorId;
+
+    private ResultadoRelatorioFalta? resultado;
+    private bool carregando;
+    private string tipoUsuario = string.Empty;
+    private string usuarioId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        tipoUsuario = authState.User.FindFirst(ClaimsTipoUsuario.ClaimType)?.Value ?? string.Empty;
+        usuarioId = authState.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+        turmas = await DbContext.Turmas.Where(t => t.Ativa).OrderBy(t => t.Nome).ToListAsync();
+        materias = await DbContext.Materias.Where(m => m.Ativa).OrderBy(m => m.Nome).ToListAsync();
+
+        if (tipoUsuario == TipoUsuario.Professor.ToString())
+        {
+            filtroProfessorId = usuarioId;
+            var turmaIds = await DbContext.ProfessorMateriaTurmas
+                .Where(v => v.ProfessorId == usuarioId && v.Ativo)
+                .Select(v => v.TurmaId).Distinct().ToListAsync();
+            turmas = turmas.Where(t => turmaIds.Contains(t.Id)).ToList();
+        }
+
+        await Calcular();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (resultado is not null && !carregando)
+            await RenderizarGrafico();
+    }
+
+    private async Task Calcular()
+    {
+        carregando = true;
+        StateHasChanged();
+
+        resultado = await RelatorioService.CalcularPercentualFaltasAsync(
+            periodoSelecionado, dataReferencia,
+            filtroTurmaId == 0 ? null : filtroTurmaId,
+            filtroAlunoId == 0 ? null : filtroAlunoId,
+            filtroMateriaId == 0 ? null : filtroMateriaId,
+            filtroProfessorId);
+
+        carregando = false;
+        StateHasChanged();
+    }
+
+    private async Task RenderizarGrafico()
+    {
+        if (resultado is null) return;
+        var labels = resultado.Itens.Select(i => i.Rotulo).ToArray();
+        var values = resultado.Itens.Select(i => i.Percentual).ToArray();
+        var colors = new[] { "#198754", "#dc3545" };
+        await JS.InvokeVoidAsync("renderPieChart", "graficoFaltas", labels, values, colors);
+    }
+
+    private async Task AlterarPeriodo(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<PeriodoRelatorio>(e.Value?.ToString(), out var p))
+            periodoSelecionado = p;
+        await Calcular();
+    }
+
+    private async Task AlterarTurma(ChangeEventArgs e)
+    {
+        filtroTurmaId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        filtroAlunoId = 0;
+
+        if (filtroTurmaId > 0)
+            alunosFiltrados = await DbContext.Alunos
+                .Where(a => a.TurmaId == filtroTurmaId && a.Ativo)
+                .OrderBy(a => a.NomeCompleto).ToListAsync();
+        else
+            alunosFiltrados = new();
+
+        await Calcular();
+    }
+
+    private async Task AlterarAluno(ChangeEventArgs e)
+    {
+        filtroAlunoId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await Calcular();
+    }
+
+    private async Task AlterarMateria(ChangeEventArgs e)
+    {
+        filtroMateriaId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await Calcular();
+    }
+}

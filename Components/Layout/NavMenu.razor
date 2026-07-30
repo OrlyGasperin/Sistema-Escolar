@@ -1,0 +1,128 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using SistemaEscolarCompleto.Authorization
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">🏫 Sistema Escolar</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        🏠 Início
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="avisos">
+                        📢 Avisos
+                    </NavLink>
+                </div>
+
+                <AuthorizeView Policy="@Politicas.GerenciarProfessores" Context="a1">
+                    <Authorized>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="usuarios">
+                                👥 Usuários
+                            </NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Policy="@Politicas.GerenciarTurmasAlunos" Context="a2">
+                    <Authorized>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="turmas">
+                                🏫 Turmas e Alunos
+                            </NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Policy="@Politicas.GerenciarMaterias" Context="a3">
+                    <Authorized>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="materias">
+                                📚 Matérias
+                            </NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Policy="@Politicas.GerenciarCalendario" Context="a4">
+                    <Authorized>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="calendario">
+                                📅 Calendário de Aulas
+                            </NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="faltas">
+                        📋 Faltas
+                    </NavLink>
+                </div>
+
+                <AuthorizeView Policy="@Politicas.AprovarSolicitacaoFalta" Context="a5">
+                    <Authorized>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="faltas/solicitacoes">
+                                📩 Solicitações de Alteração
+                            </NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="relatorios/faltas">
+                        📊 Relatório de Faltas
+                    </NavLink>
+                </div>
+
+                <AuthorizeView Policy="@Politicas.VerHistorico" Context="a6">
+                    <Authorized>
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="historico">
+                                🕓 Histórico
+                            </NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <hr style="border-color: rgba(255,255,255,0.2); margin: 0.75rem 1rem;" />
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Manage">
+                        ⚙️ Minha Conta
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <form action="Account/Logout" method="post">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="ReturnUrl" value="https://localhost:7048/Account/Login?ReturnUrl=%2F" />
+                        <button type="submit" class="nav-link">
+                            🚪 Sair
+                        </button>
+                    </form>
+                </div>
+            </Authorized>
+
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Login">
+                        🔑 Entrar
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </nav>
+</div>

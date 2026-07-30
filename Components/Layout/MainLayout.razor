@@ -1,0 +1,32 @@
+﻿@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4 auth">
+            <AuthorizeView>
+                <Authorized>
+                    <span>Olá, @context.User.FindFirst("NomeCompleto")?.Value</span>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="Account/Login">Entrar</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <article class="content px-4">
+            <CascadingValue Value="this">
+                @Body
+            </CascadingValue>
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar</a>
+    <span class="dismiss">🗙</span>
+</div>

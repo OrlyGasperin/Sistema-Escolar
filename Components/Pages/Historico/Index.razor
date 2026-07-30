@@ -1,0 +1,268 @@
+﻿@page "/historico"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.VerHistorico)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject IAuditoriaService Auditoria
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Histórico de Alterações</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Histórico de Alterações</h3>
+    <AuthorizeView Policy="@Politicas.GerenciarPedagogos" Context="authAdmin">
+        <Authorized>
+            <button class="btn btn-outline-danger btn-sm" @onclick="() => confirmarExcluirTodos = true">
+                🗑️ Apagar todo o histórico
+            </button>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+@if (confirmarExcluirTodos)
+{
+    <div class="alert alert-danger d-flex justify-content-between align-items-center mb-3">
+        <span>Tem certeza que deseja apagar <strong>todo</strong> o histórico? Esta ação é irreversível.</span>
+        <div>
+            <button class="btn btn-danger btn-sm me-2" @onclick="ExecutarExcluirTodos">Confirmar</button>
+            <button class="btn btn-secondary btn-sm" @onclick="() => confirmarExcluirTodos = false">Cancelar</button>
+        </div>
+    </div>
+}
+
+<div class="row mb-3 g-2">
+    <div class="col-md-3">
+        <label class="form-label">Entidade</label>
+        <select class="form-select" @onchange="FiltrarEntidade">
+            <option value="">Todas</option>
+            <option value="Aluno">Aluno</option>
+            <option value="Turma">Turma</option>
+            <option value="Materia">Matéria</option>
+            <option value="Falta">Falta</option>
+            <option value="SolicitacaoAlteracaoFalta">Solicitação de Falta</option>
+            <option value="Aviso">Aviso</option>
+            <option value="Usuario">Usuário</option>
+            <option value="ProfessorMateriaTurma">Vínculo Prof-Matéria-Turma</option>
+            <option value="AulaCalendario">Aula Calendário</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Ação</label>
+        <select class="form-select" @onchange="FiltrarAcao">
+            <option value="">Todas</option>
+            <option value="Criação">Criação</option>
+            <option value="Edição">Edição</option>
+            <option value="Exclusão">Exclusão</option>
+            <option value="Aprovação">Aprovação</option>
+            <option value="Rejeição">Rejeição</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Data inicial</label>
+        <InputDate class="form-control" @bind-Value="filtroDataInicio" @bind-Value:after="Carregar" />
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Data final</label>
+        <InputDate class="form-control" @bind-Value="filtroDataFim" @bind-Value:after="Carregar" />
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Usuário</label>
+        <input class="form-control" placeholder="Nome..." value="@filtroUsuario"
+               @oninput="FiltrarUsuario" />
+    </div>
+</div>
+
+<p class="text-muted">@(logs?.Count ?? 0) registros encontrados</p>
+
+@if (logs is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else if (logs.Count == 0)
+{
+    <p class="text-muted">Nenhum registro encontrado para o filtro selecionado.</p>
+}
+else
+{
+    <table class="table table-hover table-striped table-sm">
+        <thead class="table-dark">
+            <tr>
+                <th>Data/Hora</th>
+                <th>Usuário</th>
+                <th>Ação</th>
+                <th>Entidade</th>
+                <th>ID</th>
+                <th>Antes</th>
+                <th>Depois</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var log in logs)
+            {
+                <tr>
+                    <td class="text-nowrap">@log.DataHora.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                    <td>@log.UsuarioNome</td>
+                    <td>
+                        <span class="badge @BadgeAcao(log.Acao)">@log.Acao</span>
+                    </td>
+                    <td>@log.Entidade</td>
+                    <td>@(log.EntidadeId ?? "—")</td>
+                    <td>
+                        @if (!string.IsNullOrEmpty(log.DetalhesAntes))
+                        {
+                            <small class="text-muted">@log.DetalhesAntes</small>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </td>
+                    <td>
+                        @if (!string.IsNullOrEmpty(log.DetalhesDepois))
+                        {
+                            <small>@log.DetalhesDepois</small>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </td>
+                    <td>
+                        <AuthorizeView Policy="@Politicas.GerenciarPedagogos" Context="authDel">
+                            <Authorized>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        title="Excluir este registro"
+                                        @onclick="() => ExcluirLog(log)">
+                                    🗑️
+                                </button>
+                            </Authorized>
+                        </AuthorizeView>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (totalRegistros > tamanhoPagina)
+    {
+        <div class="d-flex gap-2 align-items-center mt-2">
+            <button class="btn btn-outline-secondary btn-sm"
+                    disabled="@(paginaAtual == 1)"
+                    @onclick="PaginaAnterior">
+                ← Anterior
+            </button>
+            <span>Página @paginaAtual de @totalPaginas</span>
+            <button class="btn btn-outline-secondary btn-sm"
+                    disabled="@(paginaAtual >= totalPaginas)"
+                    @onclick="ProximaPagina">
+                Próxima →
+            </button>
+        </div>
+    }
+}
+
+@code {
+    private List<LogAuditoria>? logs;
+    private string filtroEntidade = string.Empty;
+    private string filtroAcao = string.Empty;
+    private string filtroUsuario = string.Empty;
+    private DateTime filtroDataInicio = DateTime.Today.AddDays(-7);
+    private DateTime filtroDataFim = DateTime.Today;
+    private bool confirmarExcluirTodos;
+
+    private int paginaAtual = 1;
+    private int tamanhoPagina = 50;
+    private int totalRegistros;
+    private int totalPaginas => (int)Math.Ceiling((double)totalRegistros / tamanhoPagina);
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        var inicio = filtroDataInicio.Date;
+        var fim = filtroDataFim.Date.AddDays(1).AddTicks(-1);
+
+        var query = DbContext.LogsAuditoria
+            .Where(l => l.DataHora >= inicio && l.DataHora <= fim);
+
+        if (!string.IsNullOrEmpty(filtroEntidade))
+            query = query.Where(l => l.Entidade == filtroEntidade);
+
+        if (!string.IsNullOrEmpty(filtroAcao))
+            query = query.Where(l => l.Acao == filtroAcao);
+
+        if (!string.IsNullOrWhiteSpace(filtroUsuario))
+            query = query.Where(l => l.UsuarioNome.Contains(filtroUsuario));
+
+        totalRegistros = await query.CountAsync();
+
+        logs = await query
+            .OrderByDescending(l => l.DataHora)
+            .Skip((paginaAtual - 1) * tamanhoPagina)
+            .Take(tamanhoPagina)
+            .ToListAsync();
+    }
+
+    private async Task FiltrarEntidade(ChangeEventArgs e)
+    {
+        filtroEntidade = e.Value?.ToString() ?? string.Empty;
+        paginaAtual = 1;
+        await Carregar();
+    }
+
+    private async Task FiltrarAcao(ChangeEventArgs e)
+    {
+        filtroAcao = e.Value?.ToString() ?? string.Empty;
+        paginaAtual = 1;
+        await Carregar();
+    }
+
+    private async Task FiltrarUsuario(ChangeEventArgs e)
+    {
+        filtroUsuario = e.Value?.ToString() ?? string.Empty;
+        paginaAtual = 1;
+        await Carregar();
+    }
+
+    private async Task PaginaAnterior()
+    {
+        if (paginaAtual > 1) { paginaAtual--; await Carregar(); }
+    }
+
+    private async Task ProximaPagina()
+    {
+        if (paginaAtual < totalPaginas) { paginaAtual++; await Carregar(); }
+    }
+
+    private async Task ExcluirLog(LogAuditoria log)
+    {
+        DbContext.LogsAuditoria.Remove(log);
+        await DbContext.SaveChangesAsync();
+        await Carregar();
+    }
+
+    private async Task ExecutarExcluirTodos()
+    {
+        DbContext.LogsAuditoria.RemoveRange(DbContext.LogsAuditoria);
+        await DbContext.SaveChangesAsync();
+        confirmarExcluirTodos = false;
+        totalRegistros = 0;
+        logs = new();
+    }
+
+    private static string BadgeAcao(string acao) => acao switch
+    {
+        "Criação" => "bg-success",
+        "Edição" => "bg-primary",
+        "Exclusão" => "bg-danger",
+        "Aprovação" => "bg-success",
+        "Rejeição" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

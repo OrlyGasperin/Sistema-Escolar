@@ -1,0 +1,110 @@
+﻿@page "/materias/nova"
+@page "/materias/editar/{Id:int}"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.GerenciarMaterias)]
+@using Microsoft.AspNetCore.Authorization
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject IAuditoriaService Auditoria
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<PageTitle>@(Id == 0 ? "Nova Matéria" : "Editar Matéria")</PageTitle>
+<h3>@(Id == 0 ? "Nova Matéria" : "Editar Matéria")</h3>
+
+<div class="row">
+    <div class="col-md-5">
+        <EditForm Model="modelo" OnValidSubmit="Salvar" FormName="formMateria">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="alert alert-danger" />
+
+            <div class="mb-3">
+                <label class="form-label">Nome da matéria</label>
+                <InputText class="form-control" @bind-Value="modelo.Nome" placeholder="Ex: Matemática" />
+                <ValidationMessage For="() => modelo.Nome" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Descrição (opcional)</label>
+                <InputTextArea class="form-control" @bind-Value="modelo.Descricao" rows="3" />
+            </div>
+
+            @if (Id != 0)
+            {
+                <div class="mb-3 form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="modelo.Ativa" id="chkAtiva" />
+                    <label class="form-check-label" for="chkAtiva">Matéria ativa</label>
+                </div>
+            }
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Salvar</button>
+                <a href="materias" class="btn btn-outline-secondary">Cancelar</a>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private string usuarioId = string.Empty;
+    private string usuarioNome = string.Empty;
+    private Materia? materiaEditando;
+
+    private FormModel modelo = new();
+
+    public class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Nome obrigatório")]
+        public string Nome { get; set; } = string.Empty;
+        public string? Descricao { get; set; }
+        public bool Ativa { get; set; } = true;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
+
+        if (Id != 0)
+        {
+            materiaEditando = await DbContext.Materias.FindAsync(Id);
+            if (materiaEditando is not null)
+            {
+                modelo.Nome = materiaEditando.Nome;
+                modelo.Descricao = materiaEditando.Descricao;
+                modelo.Ativa = materiaEditando.Ativa;
+            }
+        }
+    }
+
+    private async Task Salvar()
+    {
+        if (Id == 0)
+        {
+            var materia = new Materia { Nome = modelo.Nome, Descricao = modelo.Descricao, Ativa = true };
+            DbContext.Materias.Add(materia);
+            await DbContext.SaveChangesAsync();
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Criação", "Materia",
+                materia.Id.ToString(), null, materia.Nome);
+        }
+        else
+        {
+            if (materiaEditando is null) return;
+            string antes = $"{materiaEditando.Nome} | Ativa:{materiaEditando.Ativa}";
+            materiaEditando.Nome = modelo.Nome;
+            materiaEditando.Descricao = modelo.Descricao;
+            materiaEditando.Ativa = modelo.Ativa;
+            await DbContext.SaveChangesAsync();
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Edição", "Materia",
+                materiaEditando.Id.ToString(), antes, $"{materiaEditando.Nome} | Ativa:{materiaEditando.Ativa}");
+        }
+
+        Nav.NavigateTo("materias");
+    }
+}

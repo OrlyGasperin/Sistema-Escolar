@@ -1,0 +1,243 @@
+﻿@page "/avisos"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject IAuditoriaService Auditoria
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Avisos</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Avisos</h3>
+    <AuthorizeView Policy="@Politicas.GerenciarAvisos" Context="authAviso">
+        <Authorized>
+            <button class="btn btn-primary" @onclick="AbrirFormNovo">+ Novo Aviso</button>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+@if (!string.IsNullOrEmpty(mensagemSucesso))
+{
+    <div class="alert alert-success">@mensagemSucesso</div>
+}
+
+@if (avisos is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else if (avisos.Count == 0)
+{
+    <p class="text-muted">Nenhum aviso publicado.</p>
+}
+else
+{
+    @foreach (var a in avisos)
+    {
+        <div class="card mb-3 @(!a.Ativo ? "opacity-50" : "")">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="card-title">
+                            @a.Titulo
+                            @if (!a.Ativo)
+                            {
+                                <span class="badge bg-secondary ms-2">Inativo</span>
+                            }
+                        </h5>
+                        <h6 class="card-subtitle mb-2 text-muted">
+                            @a.DataPublicacao.ToString("dd/MM/yyyy HH:mm") — @a.Autor?.NomeCompleto
+                        </h6>
+                        <p class="card-text">@a.Mensagem</p>
+                    </div>
+                    <AuthorizeView Policy="@Politicas.GerenciarAvisos" Context="authAcoes">
+                        <Authorized>
+                            <div class="ms-3 d-flex gap-1">
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => AbrirFormEditar(a)">
+                                    Editar
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => ConfirmarExclusao(a)">
+                                    Excluir
+                                </button>
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@if (mostrarForm)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(avisoEditando is null ? "Novo Aviso" : "Editar Aviso")</h5>
+                    <button type="button" class="btn-close" @onclick="FecharForm"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="modelo" OnValidSubmit="Salvar" FormName="formAviso">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger" />
+
+                        <div class="mb-3">
+                            <label class="form-label">Título</label>
+                            <InputText class="form-control" @bind-Value="modelo.Titulo" />
+                            <ValidationMessage For="() => modelo.Titulo" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mensagem</label>
+                            <InputTextArea class="form-control" @bind-Value="modelo.Mensagem" rows="5" />
+                            <ValidationMessage For="() => modelo.Mensagem" />
+                        </div>
+                        @if (avisoEditando is not null)
+                        {
+                            <div class="mb-3 form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="modelo.Ativo" id="chkAtivoAviso" />
+                                <label class="form-check-label" for="chkAtivoAviso">Aviso ativo</label>
+                            </div>
+                        }
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Publicar</button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                    @onclick="FecharForm">
+                                Cancelar
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (avisoParaExcluir is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar exclusão</h5>
+                </div>
+                <div class="modal-body">
+                    <p>Deseja excluir o aviso <strong>@avisoParaExcluir.Titulo</strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => avisoParaExcluir = null">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="ExecutarExclusao">Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Aviso>? avisos;
+    private Aviso? avisoEditando;
+    private Aviso? avisoParaExcluir;
+    private bool mostrarForm;
+    private string? mensagemSucesso;
+    private string usuarioId = string.Empty;
+    private string usuarioNome = string.Empty;
+
+    private FormModel modelo = new();
+
+    public class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Título obrigatório")]
+        public string Titulo { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Mensagem obrigatória")]
+        public string Mensagem { get; set; } = string.Empty;
+
+        public bool Ativo { get; set; } = true;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        avisos = await DbContext.Avisos
+            .Include(a => a.Autor)
+            .OrderByDescending(a => a.DataPublicacao)
+            .ToListAsync();
+    }
+
+    private void AbrirFormNovo()
+    {
+        avisoEditando = null;
+        modelo = new FormModel();
+        mostrarForm = true;
+    }
+
+    private void AbrirFormEditar(Aviso a)
+    {
+        avisoEditando = a;
+        modelo = new FormModel { Titulo = a.Titulo, Mensagem = a.Mensagem, Ativo = a.Ativo };
+        mostrarForm = true;
+    }
+
+    private void FecharForm() { mostrarForm = false; avisoEditando = null; }
+
+    private async Task Salvar()
+    {
+        if (avisoEditando is null)
+        {
+            var aviso = new Aviso
+            {
+                Titulo = modelo.Titulo,
+                Mensagem = modelo.Mensagem,
+                AutorId = usuarioId,
+                Ativo = true,
+                DataPublicacao = DateTime.Now
+            };
+            DbContext.Avisos.Add(aviso);
+            await DbContext.SaveChangesAsync();
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Criação", "Aviso",
+                aviso.Id.ToString(), null, aviso.Titulo);
+            mensagemSucesso = "Aviso publicado com sucesso!";
+        }
+        else
+        {
+            string antes = $"{avisoEditando.Titulo} | Ativo:{avisoEditando.Ativo}";
+            avisoEditando.Titulo = modelo.Titulo;
+            avisoEditando.Mensagem = modelo.Mensagem;
+            avisoEditando.Ativo = modelo.Ativo;
+            await DbContext.SaveChangesAsync();
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Edição", "Aviso",
+                avisoEditando.Id.ToString(), antes, $"{avisoEditando.Titulo} | Ativo:{avisoEditando.Ativo}");
+            mensagemSucesso = "Aviso atualizado!";
+        }
+
+        FecharForm();
+        await Carregar();
+    }
+
+    private void ConfirmarExclusao(Aviso a) => avisoParaExcluir = a;
+
+    private async Task ExecutarExclusao()
+    {
+        if (avisoParaExcluir is null) return;
+        DbContext.Avisos.Remove(avisoParaExcluir);
+        await DbContext.SaveChangesAsync();
+        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Exclusão", "Aviso",
+            avisoParaExcluir.Id.ToString(), avisoParaExcluir.Titulo, null);
+        avisoParaExcluir = null;
+        await Carregar();
+    }
+}

@@ -1,0 +1,81 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Início</PageTitle>
+
+<h1>Bem-vindo(a), @nomeUsuario!</h1>
+<p class="text-muted">Painel inicial — @tipoUsuarioTexto</p>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <h4><span class="bi bi-megaphone-fill" aria-hidden="true"></span> Avisos</h4>
+
+        @if (avisos is null)
+        {
+            <p><em>Carregando avisos...</em></p>
+        }
+        else if (avisos.Count == 0)
+        {
+            <p class="text-muted">Nenhum aviso publicado no momento.</p>
+        }
+        else
+        {
+            @foreach (var aviso in avisos)
+            {
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">@aviso.Titulo</h5>
+                        <h6 class="card-subtitle mb-2 text-muted">
+                            @aviso.DataPublicacao.ToString("dd/MM/yyyy HH:mm") — @aviso.Autor?.NomeCompleto
+                        </h6>
+                        <p class="card-text">@aviso.Mensagem</p>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="col-md-4">
+        <AuthorizeView Policy="@Politicas.GerenciarAvisos" Context="innerAuth">
+            <Authorized>
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Ações Rápidas</h5>
+                        <a href="avisos" class="btn btn-primary w-100 mb-2">Publicar novo aviso</a>
+                        <a href="avisos" class="btn btn-outline-secondary w-100">Gerenciar avisos</a>
+                    </div>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+</div>
+
+@code {
+    private string nomeUsuario = string.Empty;
+    private string tipoUsuarioTexto = string.Empty;
+    private List<Aviso>? avisos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        nomeUsuario = user.FindFirst("NomeCompleto")?.Value ?? user.Identity?.Name ?? "Usuário";
+        tipoUsuarioTexto = user.FindFirst(ClaimsTipoUsuario.ClaimType)?.Value ?? string.Empty;
+
+        avisos = await DbContext.Avisos
+            .Include(a => a.Autor)
+            .Where(a => a.Ativo)
+            .OrderByDescending(a => a.DataPublicacao)
+            .Take(10)
+            .ToListAsync();
+    }
+}

@@ -1,0 +1,23 @@
+﻿<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated ?? false)
+                {
+                    <p class="text-danger p-4">Você não tem permissão para acessar esta página.</p>
+                }
+                else
+                {
+                    <RedirectToLogin />
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Não encontrado</PageTitle>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <SistemaEscolarCompleto.Components.Pages.NaoEncontrado />
+        </LayoutView>
+    </NotFound>
+</Router>

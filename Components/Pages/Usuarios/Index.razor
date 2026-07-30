@@ -1,0 +1,174 @@
+﻿@page "/usuarios"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.GerenciarProfessores)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<PageTitle>Usuários</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Usuários do Sistema</h3>
+    <div>
+        <AuthorizeView Policy="@Politicas.GerenciarPedagogos" Context="authAdmin">
+            <Authorized>
+                <a href="usuarios/novo/pedagogo" class="btn btn-outline-primary me-2">+ Pedagogo</a>
+            </Authorized>
+        </AuthorizeView>
+        <a href="usuarios/novo/professor" class="btn btn-primary">+ Professor</a>
+    </div>
+</div>
+
+@if (usuarios is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table table-hover table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Tipo</th>
+                <th>Status</th>
+                <th>Cadastrado em</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var u in usuarios)
+            {
+                <tr>
+                    <td>@u.NomeCompleto</td>
+                    <td>@u.Email</td>
+                    <td>
+                        <span class="badge @BadgeClass(u.TipoUsuario)">@u.TipoUsuario</span>
+                    </td>
+                    <td>
+                        @if (u.Ativo)
+                        {
+                            <span class="badge bg-success">Ativo</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inativo</span>
+                        }
+                    </td>
+                    <td>@u.DataCadastro.ToString("dd/MM/yyyy")</td>
+                    <td>
+                        <a href="usuarios/editar/@u.Id" class="btn btn-sm btn-outline-secondary me-1">Editar</a>
+
+                        @if (u.TipoUsuario == TipoUsuario.Pedagogo)
+                        {
+                            <AuthorizeView Policy="@Politicas.GerenciarPedagogos" Context="authDelPed">
+                                <Authorized>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => ConfirmarExclusao(u)">
+                                        Excluir
+                                    </button>
+                                </Authorized>
+                            </AuthorizeView>
+                        }
+                        else if (u.TipoUsuario == TipoUsuario.Professor)
+                        {
+                            <AuthorizeView Policy="@Politicas.ExcluirProfessor" Context="authDelProf">
+                                <Authorized>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => ConfirmarExclusao(u)">
+                                        Excluir
+                                    </button>
+                                </Authorized>
+                            </AuthorizeView>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (usuarioParaExcluir is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar exclusão</h5>
+                </div>
+                <div class="modal-body">
+                    <p>Deseja excluir o usuário <strong>@usuarioParaExcluir.NomeCompleto</strong>?</p>
+                    @if (!string.IsNullOrEmpty(mensagemErro))
+                    {
+                        <div class="alert alert-danger">@mensagemErro</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelarExclusao">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="ExecutarExclusao">Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ApplicationUser>? usuarios;
+    private ApplicationUser? usuarioParaExcluir;
+    private string? mensagemErro;
+    private string usuarioLogadoId = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioLogadoId = authState.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        await CarregarUsuarios();
+    }
+
+    private async Task CarregarUsuarios()
+    {
+        usuarios = await DbContext.Users
+            .Where(u => u.TipoUsuario == TipoUsuario.Pedagogo || u.TipoUsuario == TipoUsuario.Professor)
+            .OrderBy(u => u.TipoUsuario)
+            .ThenBy(u => u.NomeCompleto)
+            .ToListAsync();
+    }
+
+    private void ConfirmarExclusao(ApplicationUser u) { mensagemErro = null; usuarioParaExcluir = u; }
+    private void CancelarExclusao() => usuarioParaExcluir = null;
+
+    private async Task ExecutarExclusao()
+    {
+        if (usuarioParaExcluir is null) return;
+
+        bool temVinculos = await DbContext.ProfessorMateriaTurmas
+            .AnyAsync(v => v.ProfessorId == usuarioParaExcluir.Id);
+        bool temFaltas = await DbContext.Faltas
+            .AnyAsync(f => f.ProfessorLancouId == usuarioParaExcluir.Id);
+
+        if (temVinculos || temFaltas)
+        {
+            mensagemErro = "Este usuário não pode ser excluído pois possui vínculos ou registros. Desative-o em vez de excluir.";
+            return;
+        }
+
+        DbContext.Users.Remove(usuarioParaExcluir);
+        await DbContext.SaveChangesAsync();
+        usuarioParaExcluir = null;
+        await CarregarUsuarios();
+    }
+
+    private static string BadgeClass(TipoUsuario tipo) => tipo switch
+    {
+        TipoUsuario.Admin => "bg-danger",
+        TipoUsuario.Pedagogo => "bg-warning text-dark",
+        TipoUsuario.Professor => "bg-info text-dark",
+        _ => "bg-secondary"
+    };
+}

@@ -1,0 +1,292 @@
+﻿@page "/turmas/{TurmaId:int}"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.GerenciarTurmasAlunos)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject IAuditoriaService Auditoria
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Alunos — @(turma?.Nome ?? "...")</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="turmas" class="btn btn-sm btn-outline-secondary me-2">← Turmas</a>
+        <h3 class="d-inline">Alunos — @turma?.Nome (@turma?.AnoLetivo)</h3>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirFormNovo">+ Novo Aluno</button>
+</div>
+
+@if (!string.IsNullOrEmpty(mensagemSucesso))
+{
+    <div class="alert alert-success">@mensagemSucesso</div>
+}
+@if (!string.IsNullOrEmpty(mensagemErro))
+{
+    <div class="alert alert-danger">@mensagemErro</div>
+}
+
+@if (alunos is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else if (alunos.Count == 0)
+{
+    <p class="text-muted">Nenhum aluno cadastrado nesta turma.</p>
+}
+else
+{
+    <table class="table table-hover table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>Nome</th>
+                <th>Nascimento</th>
+                <th>Responsável</th>
+                <th>Telefone</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in alunos)
+            {
+                <tr>
+                    <td>@a.NomeCompleto</td>
+                    <td>@a.DataNascimento.ToString("dd/MM/yyyy")</td>
+                    <td>@(a.NomeResponsavel ?? "—")</td>
+                    <td>@(a.TelefoneResponsavel ?? "—")</td>
+                    <td>
+                        @if (a.Ativo)
+                        {
+                            <span class="badge bg-success">Ativo</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inativo</span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                @onclick="() => AbrirFormEditar(a)">
+                            Editar
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => ConfirmarExclusao(a)">
+                            Excluir
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (mostrarForm)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(alunoEditando is null ? "Novo Aluno" : "Editar Aluno")</h5>
+                    <button type="button" class="btn-close" @onclick="FecharForm"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="modelo" OnValidSubmit="SalvarAluno" FormName="formAluno">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger" />
+
+                        <div class="mb-3">
+                            <label class="form-label">Nome completo</label>
+                            <InputText class="form-control" @bind-Value="modelo.NomeCompleto" />
+                            <ValidationMessage For="() => modelo.NomeCompleto" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Data de nascimento</label>
+                            <InputDate class="form-control" @bind-Value="modelo.DataNascimento" />
+                            <ValidationMessage For="() => modelo.DataNascimento" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nome do responsável</label>
+                            <InputText class="form-control" @bind-Value="modelo.NomeResponsavel" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Telefone do responsável</label>
+                            <InputText class="form-control" @bind-Value="modelo.TelefoneResponsavel" />
+                        </div>
+                        @if (alunoEditando is not null)
+                        {
+                            <div class="mb-3 form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="modelo.Ativo" id="chkAtivoAluno" />
+                                <label class="form-check-label" for="chkAtivoAluno">Ativo</label>
+                            </div>
+                        }
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Salvar</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="FecharForm">Cancelar</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (alunoParaExcluir is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar exclusão</h5>
+                </div>
+                <div class="modal-body">
+                    <p>Deseja excluir o aluno <strong>@alunoParaExcluir.NomeCompleto</strong>?</p>
+                    @if (!string.IsNullOrEmpty(mensagemErroModal))
+                    {
+                        <div class="alert alert-danger">@mensagemErroModal</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => alunoParaExcluir = null">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="ExecutarExclusao">Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int TurmaId { get; set; }
+
+    private Turma? turma;
+    private List<Aluno>? alunos;
+    private Aluno? alunoEditando;
+    private Aluno? alunoParaExcluir;
+    private bool mostrarForm;
+    private string? mensagemSucesso;
+    private string? mensagemErro;
+    private string? mensagemErroModal;
+    private string usuarioId = string.Empty;
+    private string usuarioNome = string.Empty;
+
+    private FormModel modelo = new();
+
+    public class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Nome obrigatório")]
+        public string NomeCompleto { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Data de nascimento obrigatória")]
+        public DateTime DataNascimento { get; set; } = DateTime.Today.AddYears(-10);
+
+        public string? NomeResponsavel { get; set; }
+        public string? TelefoneResponsavel { get; set; }
+        public bool Ativo { get; set; } = true;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        turma = await DbContext.Turmas.FindAsync(TurmaId);
+        alunos = await DbContext.Alunos
+            .Where(a => a.TurmaId == TurmaId)
+            .OrderBy(a => a.NomeCompleto)
+            .ToListAsync();
+    }
+
+    private void AbrirFormNovo()
+    {
+        alunoEditando = null;
+        modelo = new FormModel();
+        mostrarForm = true;
+    }
+
+    private void AbrirFormEditar(Aluno a)
+    {
+        alunoEditando = a;
+        modelo = new FormModel
+        {
+            NomeCompleto = a.NomeCompleto,
+            DataNascimento = a.DataNascimento,
+            NomeResponsavel = a.NomeResponsavel,
+            TelefoneResponsavel = a.TelefoneResponsavel,
+            Ativo = a.Ativo
+        };
+        mostrarForm = true;
+    }
+
+    private void FecharForm() { mostrarForm = false; alunoEditando = null; }
+
+    private async Task SalvarAluno()
+    {
+        mensagemSucesso = null;
+        mensagemErro = null;
+
+        if (alunoEditando is null)
+        {
+            var aluno = new Aluno
+            {
+                NomeCompleto = modelo.NomeCompleto,
+                DataNascimento = modelo.DataNascimento,
+                NomeResponsavel = modelo.NomeResponsavel,
+                TelefoneResponsavel = modelo.TelefoneResponsavel,
+                TurmaId = TurmaId,
+                Ativo = true,
+                DataMatricula = DateTime.Now
+            };
+            DbContext.Alunos.Add(aluno);
+            await DbContext.SaveChangesAsync();
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Criação", "Aluno", aluno.Id.ToString(),
+                null, $"{aluno.NomeCompleto} na turma {TurmaId}");
+            mensagemSucesso = "Aluno cadastrado com sucesso!";
+        }
+        else
+        {
+            string antes = $"{alunoEditando.NomeCompleto} | {alunoEditando.DataNascimento:dd/MM/yyyy} | Ativo:{alunoEditando.Ativo}";
+            alunoEditando.NomeCompleto = modelo.NomeCompleto;
+            alunoEditando.DataNascimento = modelo.DataNascimento;
+            alunoEditando.NomeResponsavel = modelo.NomeResponsavel;
+            alunoEditando.TelefoneResponsavel = modelo.TelefoneResponsavel;
+            alunoEditando.Ativo = modelo.Ativo;
+            await DbContext.SaveChangesAsync();
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Edição", "Aluno", alunoEditando.Id.ToString(),
+                antes, $"{alunoEditando.NomeCompleto} | Ativo:{alunoEditando.Ativo}");
+            mensagemSucesso = "Aluno atualizado com sucesso!";
+        }
+
+        FecharForm();
+        await Carregar();
+    }
+
+    private void ConfirmarExclusao(Aluno a) { mensagemErroModal = null; alunoParaExcluir = a; }
+
+    private async Task ExecutarExclusao()
+    {
+        if (alunoParaExcluir is null) return;
+
+        bool temFaltas = await DbContext.Faltas.AnyAsync(f => f.AlunoId == alunoParaExcluir.Id);
+        if (temFaltas)
+        {
+            mensagemErroModal = "Não é possível excluir: aluno possui faltas registradas. Desative-o em vez de excluir.";
+            return;
+        }
+
+        DbContext.Alunos.Remove(alunoParaExcluir);
+        await DbContext.SaveChangesAsync();
+        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Exclusão", "Aluno", alunoParaExcluir.Id.ToString(),
+            alunoParaExcluir.NomeCompleto, null);
+        alunoParaExcluir = null;
+        await Carregar();
+    }
+}

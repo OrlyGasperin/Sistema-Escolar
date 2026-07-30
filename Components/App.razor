@@ -1,0 +1,51 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="SistemaEscolarCompleto.styles.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <HeadOutlet />
+</head>
+
+<body>
+    <Routes />
+
+    <script src="_framework/blazor.web.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+            window.renderPieChart = function(canvasId, labels, values, colors) {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+                const existing = Chart.getChart(canvas);
+                if (existing) existing.destroy();
+                new Chart(canvas, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx => ctx.label + ': ' + ctx.parsed.toFixed(1) + '%'
+                                }
+                            }
+                        }
+                    }
+                });
+            };
+    </script>
+</body>
+
+</html>

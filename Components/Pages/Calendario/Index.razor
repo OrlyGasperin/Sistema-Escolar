@@ -1,0 +1,309 @@
+﻿@page "/calendario"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.GerenciarCalendario)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject IAuditoriaService Auditoria
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+<PageTitle>Horário de Aulas</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Horário de Aulas</h3>
+    @if (turmaSelecionadaId > 0)
+    {
+        <button class="btn btn-outline-secondary" @onclick="Imprimir">🖨️ Imprimir</button>
+    }
+</div>
+
+<div class="row mb-4 g-2">
+    <div class="col-md-4">
+        <label class="form-label fw-semibold">Turma</label>
+        <select class="form-select" @onchange="SelecionarTurma">
+            <option value="0">Selecione a turma...</option>
+            @foreach (var t in turmas)
+            {
+                <option value="@t.Id">@t.Nome (@t.AnoLetivo)</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(mensagemSucesso))
+{
+    <div class="alert alert-success alert-dismissible">
+        @mensagemSucesso
+        <button type="button" class="btn-close" @onclick="() => mensagemSucesso = null"></button>
+    </div>
+}
+
+@if (turmaSelecionadaId > 0)
+{
+    <div id="horario-impressao">
+        <h5 class="mb-3">
+            @turmas.FirstOrDefault(t => t.Id == turmaSelecionadaId)?.Nome
+            — @turmas.FirstOrDefault(t => t.Id == turmaSelecionadaId)?.AnoLetivo
+        </h5>
+
+        <div class="table-responsive">
+            <table class="table table-bordered text-center align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width:120px">Aula / Horário</th>
+                        @foreach (var dia in diasSemana)
+                        {
+                            <th>@dia.Value</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int aula = 1; aula <= 9; aula++)
+                    {
+                        var aulaNum = aula;
+                        <tr>
+                            <td class="fw-semibold bg-light">
+                                <div>@aulaNum ª aula</div>
+                                <small class="text-muted">@HorarioAula(aulaNum)</small>
+                            </td>
+                            @foreach (var dia in diasSemana)
+                            {
+                                var diaN = dia.Key;
+                                var horario = horarios.FirstOrDefault(h =>
+                                    h.DiaSemana == diaN && h.NumeroAula == aulaNum);
+
+                                <td style="min-width:150px; cursor:pointer;"
+                                    class="@(horario != null ? "table-light" : "")"
+                                    @onclick="() => AbrirEdicao(diaN, aulaNum, horario)">
+                                    @if (horario != null)
+                                    {
+                                        <div class="fw-semibold text-primary">@horario.Materia?.Nome</div>
+                                        <small class="text-muted">@horario.Professor?.NomeCompleto</small>
+                                        <div>
+                                            <small class="text-danger" style="cursor:pointer;"
+                                                   @onclick:stopPropagation="true"
+                                                   @onclick="() => RemoverHorario(horario)">✕ remover</small>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">+ Adicionar</span>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (mostrarModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        @diasSemana[diaSemanaEdicao] — @numeroAulaEdicao ª aula
+                        <small class="text-muted ms-2">@HorarioAula(numeroAulaEdicao)</small>
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => mostrarModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(mensagemErroModal))
+                    {
+                        <div class="alert alert-danger">@mensagemErroModal</div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Matéria</label>
+                        <select class="form-select" @bind="materiaIdEdicao">
+                            <option value="0">Selecione...</option>
+                            @foreach (var m in materias)
+                            {
+                                <option value="@m.Id">@m.Nome</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Professor</label>
+                        <select class="form-select" @bind="professorIdEdicao">
+                            <option value="">Selecione...</option>
+                            @foreach (var p in professoresDaTurma)
+                            {
+                                <option value="@p.Id">@p.NomeCompleto</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => mostrarModal = false">Cancelar</button>
+                    <button class="btn btn-primary" @onclick="SalvarHorario">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Turma> turmas = new();
+    private List<Materia> materias = new();
+    private List<ApplicationUser> professoresDaTurma = new();
+    private List<HorarioAula> horarios = new();
+
+    private int turmaSelecionadaId;
+    private bool mostrarModal;
+    private int diaSemanaEdicao;
+    private int numeroAulaEdicao;
+    private int materiaIdEdicao;
+    private string professorIdEdicao = string.Empty;
+    private HorarioAula? horarioEditando;
+    private string? mensagemSucesso;
+    private string? mensagemErroModal;
+    private string usuarioId = string.Empty;
+    private string usuarioNome = string.Empty;
+
+    private readonly Dictionary<int, string> diasSemana = new()
+    {
+        { 1, "Segunda-feira" },
+        { 2, "Terça-feira" },
+        { 3, "Quarta-feira" },
+        { 4, "Quinta-feira" },
+        { 5, "Sexta-feira" }
+    };
+
+    private static string HorarioAula(int numero) => numero switch
+    {
+        1 => "07:30–08:20",
+        2 => "08:20–09:10",
+        3 => "09:25–10:15",
+        4 => "10:15–11:05",
+        5 => "11:05–11:55",
+        6 => "12:55–13:45",
+        7 => "13:45–14:35",
+        8 => "14:50–15:40",
+        9 => "15:40–16:30",
+        _ => string.Empty
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioId = authState.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
+
+        turmas = await DbContext.Turmas.Where(t => t.Ativa).OrderBy(t => t.Nome).ToListAsync();
+        materias = await DbContext.Materias.Where(m => m.Ativa).OrderBy(m => m.Nome).ToListAsync();
+    }
+
+    private async Task SelecionarTurma(ChangeEventArgs e)
+    {
+        turmaSelecionadaId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+        if (turmaSelecionadaId > 0)
+        {
+            await CarregarHorarios();
+
+            var profIds = await DbContext.ProfessorMateriaTurmas
+                .Where(v => v.TurmaId == turmaSelecionadaId && v.Ativo)
+                .Select(v => v.ProfessorId)
+                .Distinct()
+                .ToListAsync();
+
+            professoresDaTurma = await DbContext.Users
+                .Where(u => profIds.Contains(u.Id) && u.Ativo)
+                .OrderBy(u => u.NomeCompleto)
+                .ToListAsync();
+        }
+    }
+
+    private async Task CarregarHorarios()
+    {
+        horarios = await DbContext.HorariosAula
+            .Include(h => h.Materia)
+            .Include(h => h.Professor)
+            .Where(h => h.TurmaId == turmaSelecionadaId && h.Ativo)
+            .ToListAsync();
+    }
+
+    private void AbrirEdicao(int dia, int aula, HorarioAula? existente)
+    {
+        diaSemanaEdicao = dia;
+        numeroAulaEdicao = aula;
+        horarioEditando = existente;
+        materiaIdEdicao = existente?.MateriaId ?? 0;
+        professorIdEdicao = existente?.ProfessorId ?? string.Empty;
+        mensagemErroModal = null;
+        mostrarModal = true;
+    }
+
+    private async Task SalvarHorario()
+    {
+        mensagemErroModal = null;
+
+        if (materiaIdEdicao == 0)
+        {
+            mensagemErroModal = "Selecione a matéria.";
+            return;
+        }
+        if (string.IsNullOrEmpty(professorIdEdicao))
+        {
+            mensagemErroModal = "Selecione o professor.";
+            return;
+        }
+
+        if (horarioEditando is not null)
+        {
+            horarioEditando.MateriaId = materiaIdEdicao;
+            horarioEditando.ProfessorId = professorIdEdicao;
+            await DbContext.SaveChangesAsync();
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Edição", "HorarioAula",
+                horarioEditando.Id.ToString(), null,
+                $"Turma:{turmaSelecionadaId} Dia:{diaSemanaEdicao} Aula:{numeroAulaEdicao}");
+        }
+        else
+        {
+            var novo = new HorarioAula
+            {
+                TurmaId = turmaSelecionadaId,
+                DiaSemana = diaSemanaEdicao,
+                NumeroAula = numeroAulaEdicao,
+                MateriaId = materiaIdEdicao,
+                ProfessorId = professorIdEdicao,
+                Ativo = true
+            };
+            DbContext.HorariosAula.Add(novo);
+            await DbContext.SaveChangesAsync();
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Criação", "HorarioAula",
+                novo.Id.ToString(), null,
+                $"Turma:{turmaSelecionadaId} Dia:{diaSemanaEdicao} Aula:{numeroAulaEdicao}");
+        }
+
+        mostrarModal = false;
+        mensagemSucesso = "Horário salvo com sucesso!";
+        await CarregarHorarios();
+    }
+
+    private async Task RemoverHorario(HorarioAula h)
+    {
+        DbContext.HorariosAula.Remove(h);
+        await DbContext.SaveChangesAsync();
+        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Exclusão", "HorarioAula",
+            h.Id.ToString(), $"Dia:{h.DiaSemana} Aula:{h.NumeroAula}", null);
+        await CarregarHorarios();
+    }
+
+    private async Task Imprimir()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+}

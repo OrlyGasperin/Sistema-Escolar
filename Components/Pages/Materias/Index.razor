@@ -1,0 +1,141 @@
+﻿@page "/materias"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.GerenciarMaterias)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject IAuditoriaService Auditoria
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<PageTitle>Matérias</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Matérias</h3>
+    <div>
+        <a href="materias/nova" class="btn btn-primary me-2">+ Nova Matéria</a>
+        <a href="materias/vinculos" class="btn btn-outline-primary">Vínculos Professor-Turma</a>
+    </div>
+</div>
+
+@if (materias is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else if (materias.Count == 0)
+{
+    <p class="text-muted">Nenhuma matéria cadastrada.</p>
+}
+else
+{
+    <table class="table table-hover table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>Nome</th>
+                <th>Descrição</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var m in materias)
+            {
+                <tr>
+                    <td>@m.Nome</td>
+                    <td>@(m.Descricao ?? "—")</td>
+                    <td>
+                        @if (m.Ativa)
+                        {
+                            <span class="badge bg-success">Ativa</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inativa</span>
+                        }
+                    </td>
+                    <td>
+                        <a href="materias/editar/@m.Id" class="btn btn-sm btn-outline-secondary me-1">Editar</a>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => ConfirmarExclusao(m)">
+                            Excluir
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (materiaParaExcluir is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar exclusão</h5>
+                </div>
+                <div class="modal-body">
+                    <p>Deseja excluir a matéria <strong>@materiaParaExcluir.Nome</strong>?</p>
+                    @if (!string.IsNullOrEmpty(mensagemErro))
+                    {
+                        <div class="alert alert-danger">@mensagemErro</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => materiaParaExcluir = null">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="ExecutarExclusao">Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Materia>? materias;
+    private Materia? materiaParaExcluir;
+    private string? mensagemErro;
+    private string usuarioId = string.Empty;
+    private string usuarioNome = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        materias = await DbContext.Materias
+            .OrderBy(m => m.Nome)
+            .ToListAsync();
+    }
+
+    private void ConfirmarExclusao(Materia m) { mensagemErro = null; materiaParaExcluir = m; }
+
+    private async Task ExecutarExclusao()
+    {
+        if (materiaParaExcluir is null) return;
+
+        bool temVinculos = await DbContext.ProfessorMateriaTurmas.AnyAsync(v => v.MateriaId == materiaParaExcluir.Id);
+        bool temFaltas = await DbContext.Faltas.AnyAsync(f => f.MateriaId == materiaParaExcluir.Id);
+
+        if (temVinculos || temFaltas)
+        {
+            mensagemErro = "Não é possível excluir: matéria possui vínculos ou faltas registradas. Desative-a em vez de excluir.";
+            return;
+        }
+
+        DbContext.Materias.Remove(materiaParaExcluir);
+        await DbContext.SaveChangesAsync();
+        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Exclusão", "Materia",
+            materiaParaExcluir.Id.ToString(), materiaParaExcluir.Nome, null);
+        materiaParaExcluir = null;
+        await Carregar();
+    }
+}

@@ -1,0 +1,292 @@
+﻿@page "/materias/vinculos"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = Politicas.GerenciarMaterias)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using SistemaEscolarCompleto.Authorization
+@using SistemaEscolarCompleto.Data
+@using SistemaEscolarCompleto.Models
+@using SistemaEscolarCompleto.Services
+@inject ApplicationDbContext DbContext
+@inject IAuditoriaService Auditoria
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Vínculos Professor-Matéria-Turma</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="materias" class="btn btn-sm btn-outline-secondary me-2">← Matérias</a>
+        <h3 class="d-inline">Vínculos Professor-Matéria-Turma</h3>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirFormNovo">+ Novo Vínculo</button>
+</div>
+
+@if (!string.IsNullOrEmpty(mensagemSucesso))
+{
+    <div class="alert alert-success">@mensagemSucesso</div>
+}
+@if (!string.IsNullOrEmpty(mensagemErro))
+{
+    <div class="alert alert-danger">@mensagemErro</div>
+}
+
+@if (vinculos is null)
+{
+    <p><em>Carregando...</em></p>
+}
+else if (vinculos.Count == 0)
+{
+    <p class="text-muted">Nenhum vínculo cadastrado.</p>
+}
+else
+{
+    <table class="table table-hover table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>Professor</th>
+                <th>Matéria</th>
+                <th>Turma</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var v in vinculos)
+            {
+                <tr>
+                    <td>@v.Professor?.NomeCompleto</td>
+                    <td>@v.Materia?.Nome</td>
+                    <td>@v.Turma?.Nome (@v.Turma?.AnoLetivo)</td>
+                    <td>
+                        @if (v.Ativo)
+                        {
+                            <span class="badge bg-success">Ativo</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inativo</span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                @onclick="() => ToggleAtivo(v)">
+                            @(v.Ativo ? "Desativar" : "Ativar")
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => ConfirmarExclusao(v)">
+                            Excluir
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (mostrarForm)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Novo Vínculo</h5>
+                    <button type="button" class="btn-close" @onclick="() => mostrarForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="modelo" OnValidSubmit="SalvarVinculo" FormName="formVinculo">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger" />
+
+                        <div class="mb-3">
+                            <label class="form-label">Professor</label>
+                            <InputSelect class="form-select" @bind-Value="modelo.ProfessorId">
+                                <option value="">Selecione...</option>
+                                @foreach (var p in professores)
+                                {
+                                    <option value="@p.Id">@p.NomeCompleto</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Matéria</label>
+                            <InputSelect class="form-select" @bind-Value="modelo.MateriaId">
+                                <option value="0">Selecione...</option>
+                                @foreach (var m in materias)
+                                {
+                                    <option value="@m.Id">@m.Nome</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Turma</label>
+                            <InputSelect class="form-select" @bind-Value="modelo.TurmaId">
+                                <option value="0">Selecione...</option>
+                                @foreach (var t in turmas)
+                                {
+                                    <option value="@t.Id">@t.Nome (@t.AnoLetivo)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Salvar</button>
+                            <button type="button" class="btn btn-outline-secondary"
+                                    @onclick="() => mostrarForm = false">
+                                Cancelar
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (vinculoParaExcluir is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar exclusão</h5>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Deseja excluir o vínculo de <strong>@vinculoParaExcluir.Professor?.NomeCompleto</strong>
+                        com <strong>@vinculoParaExcluir.Materia?.Nome</strong>
+                        na turma <strong>@vinculoParaExcluir.Turma?.Nome</strong>?
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => vinculoParaExcluir = null">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="ExecutarExclusao">Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProfessorMateriaTurma>? vinculos;
+    private List<ApplicationUser> professores = new();
+    private List<Materia> materias = new();
+    private List<Turma> turmas = new();
+    private ProfessorMateriaTurma? vinculoParaExcluir;
+    private bool mostrarForm;
+    private string? mensagemSucesso;
+    private string? mensagemErro;
+    private string usuarioId = string.Empty;
+    private string usuarioNome = string.Empty;
+
+    private FormModel modelo = new();
+
+    public class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Professor obrigatório")]
+        public string ProfessorId { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Matéria obrigatória")]
+        public int MateriaId { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Turma obrigatória")]
+        public int TurmaId { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        usuarioId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        vinculos = await DbContext.ProfessorMateriaTurmas
+            .Include(v => v.Professor)
+            .Include(v => v.Materia)
+            .Include(v => v.Turma)
+            .OrderBy(v => v.Professor!.NomeCompleto)
+            .ToListAsync();
+
+        professores = await DbContext.Users
+            .Where(u => u.TipoUsuario == TipoUsuario.Professor && u.Ativo)
+            .OrderBy(u => u.NomeCompleto)
+            .ToListAsync();
+
+        materias = await DbContext.Materias
+            .Where(m => m.Ativa)
+            .OrderBy(m => m.Nome)
+            .ToListAsync();
+
+        turmas = await DbContext.Turmas
+            .Where(t => t.Ativa)
+            .OrderBy(t => t.Nome)
+            .ToListAsync();
+    }
+
+    private void AbrirFormNovo()
+    {
+        modelo = new FormModel();
+        mensagemErro = null;
+        mensagemSucesso = null;
+        mostrarForm = true;
+    }
+
+    private async Task SalvarVinculo()
+    {
+        mensagemErro = null;
+
+        bool jaExiste = await DbContext.ProfessorMateriaTurmas.AnyAsync(v =>
+            v.ProfessorId == modelo.ProfessorId &&
+            v.MateriaId == modelo.MateriaId &&
+            v.TurmaId == modelo.TurmaId);
+
+        if (jaExiste)
+        {
+            mensagemErro = "Este vínculo já existe.";
+            return;
+        }
+
+        var vinculo = new ProfessorMateriaTurma
+        {
+            ProfessorId = modelo.ProfessorId,
+            MateriaId = modelo.MateriaId,
+            TurmaId = modelo.TurmaId,
+            Ativo = true
+        };
+
+        DbContext.ProfessorMateriaTurmas.Add(vinculo);
+        await DbContext.SaveChangesAsync();
+        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Criação", "ProfessorMateriaTurma",
+            vinculo.Id.ToString(), null,
+            $"Professor:{modelo.ProfessorId} | Materia:{modelo.MateriaId} | Turma:{modelo.TurmaId}");
+
+        mostrarForm = false;
+        mensagemSucesso = "Vínculo criado com sucesso!";
+        await Carregar();
+    }
+
+    private async Task ToggleAtivo(ProfessorMateriaTurma v)
+    {
+        v.Ativo = !v.Ativo;
+        await DbContext.SaveChangesAsync();
+        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Edição", "ProfessorMateriaTurma",
+            v.Id.ToString(), (!v.Ativo).ToString(), v.Ativo.ToString());
+        await Carregar();
+    }
+
+    private void ConfirmarExclusao(ProfessorMateriaTurma v) => vinculoParaExcluir = v;
+
+    private async Task ExecutarExclusao()
+    {
+        if (vinculoParaExcluir is null) return;
+        DbContext.ProfessorMateriaTurmas.Remove(vinculoParaExcluir);
+        await DbContext.SaveChangesAsync();
+        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Exclusão", "ProfessorMateriaTurma",
+            vinculoParaExcluir.Id.ToString(),
+            $"Professor:{vinculoParaExcluir.ProfessorId} | Materia:{vinculoParaExcluir.MateriaId} | Turma:{vinculoParaExcluir.TurmaId}",
+            null);
+        vinculoParaExcluir = null;
+        await Carregar();
+    }
+}
