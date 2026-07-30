@@ -1,51 +1,137 @@
-h1:focus {
-    outline: none;
+/* ===== HORÁRIO DE AULAS ===== */
+.print-only {
+    display: none;
 }
 
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+.horario-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 
-.invalid {
-    outline: 1px solid #e50000;
-}
-
-.validation-message {
-    color: #e50000;
-}
-
-.blazor-error-boundary {
-    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
-    padding: 1rem 1rem 1rem 3.7rem;
+.horario-th-label {
+    background-color: #1a237e;
     color: white;
+    text-align: center;
+    padding: 10px 8px;
+    border: 1px solid #b0bec5;
+    width: 130px;
+    font-weight: 600;
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
-
-.darker-border-checkbox.form-check-input {
-    border-color: #929292;
+.horario-th-dia {
+    background-color: #1a237e;
+    color: white;
+    text-align: center;
+    padding: 10px 8px;
+    border: 1px solid #b0bec5;
+    font-weight: 600;
+    min-width: 150px;
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-    color: var(--bs-secondary-color);
-    text-align: end;
+.horario-row-odd {
+    background-color: #ffffff;
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-    text-align: start;
+.horario-row-even {
+    background-color: #f5f7ff;
 }
+
+.horario-label-cell {
+    text-align: center;
+    padding: 8px 6px;
+    border: 1px solid #cfd8dc;
+    background-color: #e8eaf6;
+    vertical-align: middle;
+    font-size: 0.85rem;
+}
+
+.horario-time {
+    font-size: 0.75rem;
+    color: #546e7a;
+    margin-top: 2px;
+}
+
+.horario-cell {
+    text-align: center;
+    vertical-align: middle;
+    padding: 6px 8px;
+    border: 1px solid #cfd8dc;
+}
+
+.horario-materia-nome {
+    font-weight: 600;
+    color: #1a237e;
+    font-size: 0.88rem;
+    margin-bottom: 4px;
+}
+
+.horario-select {
+    font-size: 0.8rem;
+    border-color: #90a4ae;
+    color: #37474f;
+    max-width: 160px;
+    margin: 0 auto;
+}
+
+.horario-vazio {
+    color: #b0bec5;
+    font-size: 0.85rem;
+}
+
+/* ===== IMPRESSÃO ===== */
 @media print {
-    .sidebar, .top-row, button, .btn, select, .alert {
+    .no-print {
         display: none !important;
     }
 
-    #horario-impressao {
+    .print-only {
         display: block !important;
     }
 
-    body {
-        font-size: 12px;
+    .sidebar,
+    .top-row,
+    nav,
+    .navbar,
+    .alert,
+    button {
+        display: none !important;
+    }
+
+    .horario-table {
+        width: 100%;
+        font-size: 10px;
+    }
+
+    .horario-th-label,
+    .horario-th-dia {
+        background-color: #1a237e !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .horario-row-even {
+        background-color: #f5f7ff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .horario-label-cell {
+        background-color: #e8eaf6 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .print-title {
+        font-size: 13px;
+        font-weight: bold;
+        margin-bottom: 8px;
+    }
+
+    main, article, .page {
+        padding: 0 !important;
+        margin: 0 !important;
     }
 }
