@@ -23,11 +23,17 @@
 
 @if (!string.IsNullOrEmpty(mensagemSucesso))
 {
-    <div class="alert alert-success">@mensagemSucesso</div>
+    <div class="alert alert-success alert-dismissible">
+        @mensagemSucesso
+        <button type="button" class="btn-close" @onclick="() => mensagemSucesso = null"></button>
+    </div>
 }
 @if (!string.IsNullOrEmpty(mensagemErro))
 {
-    <div class="alert alert-danger">@mensagemErro</div>
+    <div class="alert alert-danger alert-dismissible">
+        @mensagemErro
+        <button type="button" class="btn-close" @onclick="() => mensagemErro = null"></button>
+    </div>
 }
 
 @if (alunos is null)
@@ -71,13 +77,9 @@ else
                     </td>
                     <td>
                         <button class="btn btn-sm btn-outline-secondary me-1"
-                                @onclick="() => AbrirFormEditar(a)">
-                            Editar
-                        </button>
+                                @onclick="() => AbrirFormEditar(a)">Editar</button>
                         <button class="btn btn-sm btn-outline-danger"
-                                @onclick="() => ConfirmarExclusao(a)">
-                            Excluir
-                        </button>
+                                @onclick="() => ConfirmarExclusao(a)">Excluir</button>
                     </td>
                 </tr>
             }
@@ -85,6 +87,7 @@ else
     </table>
 }
 
+@* Modal: Cadastrar/Editar Aluno *@
 @if (mostrarForm)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
@@ -95,46 +98,57 @@ else
                     <button type="button" class="btn-close" @onclick="FecharForm"></button>
                 </div>
                 <div class="modal-body">
-                    <EditForm Model="modelo" OnValidSubmit="SalvarAluno" FormName="formAluno">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary class="alert alert-danger" />
+                    @if (erros.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                @foreach (var erro in erros)
+                                {
+                                    <li>@erro</li>
+                                }
+                            </ul>
+                        </div>
+                    }
 
-                        <div class="mb-3">
-                            <label class="form-label">Nome completo</label>
-                            <InputText class="form-control" @bind-Value="modelo.NomeCompleto" />
-                            <ValidationMessage For="() => modelo.NomeCompleto" />
+                    <div class="mb-3">
+                        <label class="form-label">Nome completo</label>
+                        <input class="form-control" @bind="nomeCompleto" @bind:event="oninput" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data de nascimento</label>
+                        <input class="form-control" type="date"
+                               value="@dataNascimento.ToString("yyyy-MM-dd")"
+                               @onchange="e => dataNascimento = DateTime.SpecifyKind(
+                                   DateTime.Parse(e.Value?.ToString() ?? DateTime.UtcNow.ToString()),
+                                   DateTimeKind.Utc)" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nome do responsável</label>
+                        <input class="form-control" @bind="nomeResponsavel" @bind:event="oninput" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Telefone do responsável</label>
+                        <input class="form-control" @bind="telefoneResponsavel" @bind:event="oninput" />
+                    </div>
+                    @if (alunoEditando is not null)
+                    {
+                        <div class="mb-3 form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   @bind="ativo" id="chkAtivoAluno" />
+                            <label class="form-check-label" for="chkAtivoAluno">Ativo</label>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Data de nascimento</label>
-                            <InputDate class="form-control" @bind-Value="modelo.DataNascimento" />
-                            <ValidationMessage For="() => modelo.DataNascimento" />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Nome do responsável</label>
-                            <InputText class="form-control" @bind-Value="modelo.NomeResponsavel" />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Telefone do responsável</label>
-                            <InputText class="form-control" @bind-Value="modelo.TelefoneResponsavel" />
-                        </div>
-                        @if (alunoEditando is not null)
-                        {
-                            <div class="mb-3 form-check">
-                                <InputCheckbox class="form-check-input" @bind-Value="modelo.Ativo" id="chkAtivoAluno" />
-                                <label class="form-check-label" for="chkAtivoAluno">Ativo</label>
-                            </div>
-                        }
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary">Salvar</button>
-                            <button type="button" class="btn btn-outline-secondary" @onclick="FecharForm">Cancelar</button>
-                        </div>
-                    </EditForm>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="FecharForm">Cancelar</button>
+                    <button class="btn btn-primary" @onclick="SalvarAluno">Salvar</button>
                 </div>
             </div>
         </div>
     </div>
 }
 
+@* Modal: Confirmar exclusão *@
 @if (alunoParaExcluir is not null)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
@@ -151,7 +165,8 @@ else
                     }
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="() => alunoParaExcluir = null">Cancelar</button>
+                    <button class="btn btn-secondary"
+                            @onclick="() => alunoParaExcluir = null">Cancelar</button>
                     <button class="btn btn-danger" @onclick="ExecutarExclusao">Excluir</button>
                 </div>
             </div>
@@ -167,31 +182,26 @@ else
     private Aluno? alunoEditando;
     private Aluno? alunoParaExcluir;
     private bool mostrarForm;
+
+    // Campos do formulário
+    private string nomeCompleto = string.Empty;
+    private DateTime dataNascimento = DateTime.UtcNow.AddYears(-10);
+    private string? nomeResponsavel;
+    private string? telefoneResponsavel;
+    private bool ativo = true;
+    private List<string> erros = new();
+
     private string? mensagemSucesso;
     private string? mensagemErro;
     private string? mensagemErroModal;
     private string usuarioId = string.Empty;
     private string usuarioNome = string.Empty;
 
-    private FormModel modelo = new();
-
-    public class FormModel
-    {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Nome obrigatório")]
-        public string NomeCompleto { get; set; } = string.Empty;
-
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Data de nascimento obrigatória")]
-        public DateTime DataNascimento { get; set; } = DateTime.Today.AddYears(-10);
-
-        public string? NomeResponsavel { get; set; }
-        public string? TelefoneResponsavel { get; set; }
-        public bool Ativo { get; set; } = true;
-    }
-
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        usuarioId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        usuarioId = authState.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         usuarioNome = authState.User.FindFirst("NomeCompleto")?.Value ?? string.Empty;
         await Carregar();
     }
@@ -208,28 +218,46 @@ else
     private void AbrirFormNovo()
     {
         alunoEditando = null;
-        modelo = new FormModel();
+        nomeCompleto = string.Empty;
+        dataNascimento = DateTime.UtcNow.AddYears(-10);
+        nomeResponsavel = null;
+        telefoneResponsavel = null;
+        ativo = true;
+        erros = new();
         mostrarForm = true;
     }
 
     private void AbrirFormEditar(Aluno a)
     {
         alunoEditando = a;
-        modelo = new FormModel
-        {
-            NomeCompleto = a.NomeCompleto,
-            DataNascimento = a.DataNascimento,
-            NomeResponsavel = a.NomeResponsavel,
-            TelefoneResponsavel = a.TelefoneResponsavel,
-            Ativo = a.Ativo
-        };
+        nomeCompleto = a.NomeCompleto;
+        dataNascimento = DateTime.SpecifyKind(a.DataNascimento, DateTimeKind.Utc);
+        nomeResponsavel = a.NomeResponsavel;
+        telefoneResponsavel = a.TelefoneResponsavel;
+        ativo = a.Ativo;
+        erros = new();
         mostrarForm = true;
     }
 
-    private void FecharForm() { mostrarForm = false; alunoEditando = null; }
+    private void FecharForm()
+    {
+        mostrarForm = false;
+        alunoEditando = null;
+        erros = new();
+    }
+
+    private bool Validar()
+    {
+        erros = new();
+        if (string.IsNullOrWhiteSpace(nomeCompleto))
+            erros.Add("Nome completo obrigatório");
+        return !erros.Any();
+    }
 
     private async Task SalvarAluno()
     {
+        if (!Validar()) return;
+
         mensagemSucesso = null;
         mensagemErro = null;
 
@@ -237,31 +265,32 @@ else
         {
             var aluno = new Aluno
             {
-                NomeCompleto = modelo.NomeCompleto,
-                DataNascimento = modelo.DataNascimento,
-                NomeResponsavel = modelo.NomeResponsavel,
-                TelefoneResponsavel = modelo.TelefoneResponsavel,
+                NomeCompleto = nomeCompleto,
+                DataNascimento = DateTime.SpecifyKind(dataNascimento.Date, DateTimeKind.Utc),
+                NomeResponsavel = nomeResponsavel,
+                TelefoneResponsavel = telefoneResponsavel,
                 TurmaId = TurmaId,
                 Ativo = true,
                 DataMatricula = DateTime.UtcNow
             };
             DbContext.Alunos.Add(aluno);
             await DbContext.SaveChangesAsync();
-            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Criação", "Aluno", aluno.Id.ToString(),
-                null, $"{aluno.NomeCompleto} na turma {TurmaId}");
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Criação", "Aluno",
+                aluno.Id.ToString(), null, $"{aluno.NomeCompleto} na turma {TurmaId}");
             mensagemSucesso = "Aluno cadastrado com sucesso!";
         }
         else
         {
-            string antes = $"{alunoEditando.NomeCompleto} | {alunoEditando.DataNascimento:dd/MM/yyyy} | Ativo:{alunoEditando.Ativo}";
-            alunoEditando.NomeCompleto = modelo.NomeCompleto;
-            alunoEditando.DataNascimento = modelo.DataNascimento;
-            alunoEditando.NomeResponsavel = modelo.NomeResponsavel;
-            alunoEditando.TelefoneResponsavel = modelo.TelefoneResponsavel;
-            alunoEditando.Ativo = modelo.Ativo;
+            string antes = $"{alunoEditando.NomeCompleto} | Ativo:{alunoEditando.Ativo}";
+            alunoEditando.NomeCompleto = nomeCompleto;
+            alunoEditando.DataNascimento = DateTime.SpecifyKind(dataNascimento.Date, DateTimeKind.Utc);
+            alunoEditando.NomeResponsavel = nomeResponsavel;
+            alunoEditando.TelefoneResponsavel = telefoneResponsavel;
+            alunoEditando.Ativo = ativo;
             await DbContext.SaveChangesAsync();
-            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Edição", "Aluno", alunoEditando.Id.ToString(),
-                antes, $"{alunoEditando.NomeCompleto} | Ativo:{alunoEditando.Ativo}");
+            await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Edição", "Aluno",
+                alunoEditando.Id.ToString(), antes,
+                $"{alunoEditando.NomeCompleto} | Ativo:{alunoEditando.Ativo}");
             mensagemSucesso = "Aluno atualizado com sucesso!";
         }
 
@@ -269,7 +298,11 @@ else
         await Carregar();
     }
 
-    private void ConfirmarExclusao(Aluno a) { mensagemErroModal = null; alunoParaExcluir = a; }
+    private void ConfirmarExclusao(Aluno a)
+    {
+        mensagemErroModal = null;
+        alunoParaExcluir = a;
+    }
 
     private async Task ExecutarExclusao()
     {
@@ -284,8 +317,8 @@ else
 
         DbContext.Alunos.Remove(alunoParaExcluir);
         await DbContext.SaveChangesAsync();
-        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Exclusão", "Aluno", alunoParaExcluir.Id.ToString(),
-            alunoParaExcluir.NomeCompleto, null);
+        await Auditoria.RegistrarAsync(usuarioId, usuarioNome, "Exclusão", "Aluno",
+            alunoParaExcluir.Id.ToString(), alunoParaExcluir.NomeCompleto, null);
         alunoParaExcluir = null;
         await Carregar();
     }
